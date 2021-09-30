@@ -102,6 +102,14 @@ const HTML_TEMPLATES = [
     chunks: ["options"],
   },
 ];
+
+if (process.env.BUILD_FOR_ELECTRON){
+  HTML_TEMPLATES.push({
+    path: path.join(PUBLIC_PATH, "background.html"),
+    chunks: ["background"],
+  },)
+}
+
 const ENTRIES = {
   popup: path.join(SOURCE_PATH, "popup.tsx"),
   fullpage: path.join(SOURCE_PATH, "fullpage.tsx"),
@@ -116,6 +124,11 @@ const EXTENSION_ENTRIES = {
   background: "background",
   extensionPage: ["commons", "popup", "fullpage", "confirm", "options"],
 };
+
+if (process.env.BUILD_FOR_ELECTRON){
+  EXTENSION_ENTRIES.extensionPage.push('background')
+}
+
 const SEPARATED_CHUNKS = new Set(["background", "contentScript"]);
 const MANIFEST_PATH = path.join(PUBLIC_PATH, "manifest.json");
 const MODULE_FILE_EXTENSIONS = [".js", ".mjs", ".jsx", ".ts", ".tsx", ".json"];
@@ -424,6 +437,17 @@ module.exports = {
             JSON.parse(content),
             TARGET_BROWSER
           );
+          if (process.env.BUILD_FOR_ELECTRON){
+            // If we're building for electron, we need to disable auto-loading `background.js`. Unfortunately
+            // electron doesn't allow you to actually inspect a loaded extension's background pages (and there's
+            // no chrome://extensions, at least that I could fine). As part of the electron build we launch
+            // the background.js and emulate what the chrome extension api does so we can 1.) preload-patch
+            // in the chrome.windows APIs needed to function properly and 2.) observe and handle errors in development.
+            manifest.background = undefined
+
+            // We also need to ensure that `contentScript.js` is properly hooked into file:// urls
+            manifest.content_scripts[0].matches.push("file://*/*")
+          }
           return JSON.stringify(manifest, null, 2);
         },
       },
